@@ -1,0 +1,21 @@
+# --- Web / API ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# --- Quant / data ---
+hmmlearn==0.3.3
+yfinance==1.4.1
+curl_cffi==0.15.0   # usato da yfinance per le richieste HTTP (evita risposte vuote da Yahoo)
+pandas==2.2.3
+numpy==2.1.3
+scikit-learn==1.6.0
+
+# --- Database (opzionale: solo se DATABASE_URL è impostato) ---
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+
+# --- Test ---
+pytest==8.3.4
+httpx==0.28.1
