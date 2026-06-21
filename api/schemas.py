@@ -98,6 +98,10 @@ class RefreshItem(BaseModel):
 class RefreshOut(BaseModel):
     """Esito complessivo del refresh di tutti gli asset."""
 
+    status: str = Field(
+        "completed",
+        description="'completed' se eseguito subito, 'scheduled' se avviato in background.",
+    )
     refreshed: int
     failed: int
     results: list[RefreshItem]

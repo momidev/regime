@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 
 import service
 from api.schemas import (
@@ -120,11 +120,26 @@ def regime_alert_status(asset: str) -> AlertStatusOut:
 
 
 @router.post("/regime/refresh", response_model=RefreshOut, tags=["regime"])
-def regime_refresh() -> RefreshOut:
+def regime_refresh(
+    background_tasks: BackgroundTasks,
+    wait: bool = Query(
+        True,
+        description=(
+            "Se true (default) esegue il refresh e attende il risultato. "
+            "Se false avvia il refresh in background e risponde subito: "
+            "utile per i cron con timeout breve (es. cron-job.org)."
+        ),
+    ),
+) -> RefreshOut:
     """Ricalcola la classificazione per tutti gli asset (da invocare via cron)."""
+    if not wait:
+        background_tasks.add_task(service.refresh_all)
+        return RefreshOut(status="scheduled", refreshed=0, failed=0, results=[])
+
     results = service.refresh_all()
     failed = sum(1 for r in results if r.get("status") == "error")
     return RefreshOut(
+        status="completed",
         refreshed=len(results) - failed,
         failed=failed,
         results=results,  # type: ignore[arg-type]
