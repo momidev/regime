@@ -175,3 +175,19 @@ def describe_label(label: str, stats: StateStats) -> str:
         f"{stats.mean_return:+.4f}, volatilità media annualizzata "
         f"{stats.mean_volatility:.2%}."
     )
+
+
+def static_description(label: str) -> str:
+    """Descrizione di un'etichetta senza richiedere il modello addestrato.
+
+    Utile a runtime (es. su deploy con filesystem effimero) quando il file
+    modello non è disponibile: per i 4 regimi standard ritorna comunque la
+    frase descrittiva completa.
+
+    Args:
+        label: etichetta di regime (es. ``"bear-volatile"``).
+
+    Returns:
+        Descrizione in linguaggio naturale, sempre statistica/descrittiva.
+    """
+    return _DESCRIPTIONS_4.get(label, f"Regime statistico '{label}'.")

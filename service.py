@@ -22,6 +22,7 @@ from models.hmm_model import (
     model_exists,
     train_model,
 )
+from models.regime_labeler import static_description
 
 # Per il refresh giornaliero basta una finestra recente: deve solo essere
 # abbastanza lunga da calcolare le feature rolling con margine.
@@ -184,12 +185,13 @@ def get_current(asset_id: str) -> dict[str, Any]:
             f"Esegui prima un training/refresh."
         )
 
-    description = latest["state_label"]
+    # Se il modello è disponibile usa la sua descrizione; altrimenti (es. deploy
+    # con filesystem effimero senza il file .pkl) deriva la descrizione
+    # direttamente dall'etichetta, senza richiedere il modello.
     try:
-        model = load_model(asset.id)
-        description = model.describe(latest["state_index"])
+        description = load_model(asset.id).describe(latest["state_index"])
     except ModelNotTrainedError:
-        pass
+        description = static_description(latest["state_label"])
 
     return {
         "asset": asset.id,
