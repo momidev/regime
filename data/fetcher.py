@@ -80,6 +80,12 @@ def fetch_price_history(asset: Asset, lookback_days: int) -> pd.DataFrame:
     df = df[~df.index.duplicated(keep="last")]
     df = df.dropna(subset=["close"]).sort_index()
 
+    # Scarta eventuali barre datate nel futuro: per gli asset 24/5 (es. FX)
+    # yfinance può restituire, a seconda dell'ora UTC, una barra del giorno
+    # successivo, che falserebbe la classificazione "corrente".
+    today_utc = pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
+    df = df[df.index <= today_utc]
+
     if df.empty:
         raise DataFetchError(f"Serie prezzi vuota dopo la pulizia per '{asset.id}'.")
 
