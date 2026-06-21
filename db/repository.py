@@ -89,14 +89,15 @@ class SqlRepository(RegimeRepository):
             """
             INSERT INTO regime_classifications
                 (asset, date, state_index, state_label, probs,
-                 log_return, volatility, momentum, model_version)
+                 close, log_return, volatility, momentum, model_version)
             VALUES
                 (:asset, :date, :state_index, :state_label, CAST(:probs AS JSONB),
-                 :log_return, :volatility, :momentum, :model_version)
+                 :close, :log_return, :volatility, :momentum, :model_version)
             ON CONFLICT (asset, date) DO UPDATE SET
                 state_index   = EXCLUDED.state_index,
                 state_label   = EXCLUDED.state_label,
                 probs         = EXCLUDED.probs,
+                close         = EXCLUDED.close,
                 log_return    = EXCLUDED.log_return,
                 volatility    = EXCLUDED.volatility,
                 momentum      = EXCLUDED.momentum,
@@ -111,6 +112,7 @@ class SqlRepository(RegimeRepository):
                 "state_index": r["state_index"],
                 "state_label": r["state_label"],
                 "probs": json.dumps(r["probs"]),
+                "close": r.get("close"),
                 "log_return": r.get("log_return"),
                 "volatility": r.get("volatility"),
                 "momentum": r.get("momentum"),
@@ -125,7 +127,7 @@ class SqlRepository(RegimeRepository):
         stmt = text(
             """
             SELECT date, state_index, state_label, probs,
-                   log_return, volatility, momentum, model_version
+                   close, log_return, volatility, momentum, model_version
             FROM regime_classifications
             WHERE asset = :asset AND date >= :cutoff
             ORDER BY date ASC
@@ -140,7 +142,7 @@ class SqlRepository(RegimeRepository):
         stmt = text(
             """
             SELECT date, state_index, state_label, probs,
-                   log_return, volatility, momentum, model_version
+                   close, log_return, volatility, momentum, model_version
             FROM regime_classifications
             WHERE asset = :asset
             ORDER BY date DESC
@@ -247,6 +249,7 @@ class SqlRepository(RegimeRepository):
             "state_index": mapping["state_index"],
             "state_label": mapping["state_label"],
             "probs": mapping["probs"],
+            "close": mapping["close"],
             "log_return": mapping["log_return"],
             "volatility": mapping["volatility"],
             "momentum": mapping["momentum"],

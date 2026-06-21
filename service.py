@@ -53,6 +53,7 @@ def _build_classifications(
                 "state_index": state,
                 "state_label": model.labels[state],
                 "probs": prob_map,
+                "close": float(frow["close"]),
                 "log_return": float(frow["log_return"]),
                 "volatility": float(frow["volatility"]),
                 "momentum": float(frow["momentum"]),
@@ -252,4 +253,139 @@ def get_alert_status(asset_id: str) -> dict[str, Any]:
         "from_label": change["from_label"] if change else None,
         "to_label": change["to_label"] if change else None,
         "changed_at": change["changed_at"] if change else None,
+    }
+
+
+# Finestra "molto ampia" per leggere tutto lo storico disponibile.
+_ALL_HISTORY_DAYS = 100_000
+
+
+def get_overview() -> dict[str, Any]:
+    """Snapshot dello stato corrente di tutti gli asset in una sola risposta.
+
+    Pensato per la home del frontend: evita una chiamata per asset.
+    """
+    repo = get_repository()
+    items: list[dict[str, Any]] = []
+    for asset in list_assets():
+        latest = repo.get_latest(asset.id)
+        if latest is None:
+            items.append(
+                {
+                    "asset": asset.id,
+                    "name": asset.name,
+                    "asset_class": asset.asset_class,
+                    "has_data": False,
+                    "as_of": None,
+                    "state_label": None,
+                    "top_probability": None,
+                }
+            )
+            continue
+        probs: dict[str, float] = latest["probs"]
+        top_label = max(probs, key=probs.get) if probs else latest["state_label"]
+        items.append(
+            {
+                "asset": asset.id,
+                "name": asset.name,
+                "asset_class": asset.asset_class,
+                "has_data": True,
+                "as_of": latest["date"],
+                "state_label": latest["state_label"],
+                "top_probability": probs.get(top_label) if probs else None,
+            }
+        )
+    return {"count": len(items), "assets": items}
+
+
+def get_prices(asset_id: str, days: int) -> dict[str, Any]:
+    """Serie storica del prezzo di chiusura, allineata alla timeline dei regimi.
+
+    Utile al frontend per disegnare il prezzo con dietro le bande dei regimi.
+    """
+    asset = get_asset(asset_id)
+    repo = get_repository()
+    rows = repo.get_history(asset.id, days)
+    prices = [
+        {"date": r["date"], "close": r["close"]}
+        for r in rows
+        if r.get("close") is not None
+    ]
+    return {"asset": asset.id, "days": days, "count": len(prices), "prices": prices}
+
+
+def _runs(labels: list[str]) -> list[tuple[str, int]]:
+    """Comprime una sequenza di etichette in run consecutivi ``(label, lunghezza)``."""
+    runs: list[tuple[str, int]] = []
+    for label in labels:
+        if runs and runs[-1][0] == label:
+            runs[-1] = (label, runs[-1][1] + 1)
+        else:
+            runs.append((label, 1))
+    return runs
+
+
+def get_stats(asset_id: str) -> dict[str, Any]:
+    """Statistiche descrittive sui regimi di un asset.
+
+    Include: regime corrente e da quanti giorni dura (streak), frequenza e durata
+    media di ciascun regime sullo storico, e durata attesa del regime corrente
+    derivata dalla matrice di transizione (1 / (1 - p_ii)).
+    """
+    asset = get_asset(asset_id)
+    repo = get_repository()
+    history = repo.get_history(asset.id, _ALL_HISTORY_DAYS)
+    if not history:
+        raise ModelNotTrainedError(
+            f"Nessuna classificazione disponibile per '{asset.id}'. "
+            f"Esegui prima un training/refresh."
+        )
+
+    labels = [r["state_label"] for r in history]
+    total = len(labels)
+    runs = _runs(labels)
+
+    # Etichette di riferimento (ordine per indice) dalla matrice di transizione.
+    snapshot = repo.get_transition_matrix(asset.id)
+    ref_labels: list[str] = (
+        snapshot["state_labels"] if snapshot else sorted(set(labels))
+    )
+
+    per_label: list[dict[str, Any]] = []
+    for label in ref_labels:
+        count = sum(1 for x in labels if x == label)
+        durations = [length for lbl, length in runs if lbl == label]
+        avg_dur = sum(durations) / len(durations) if durations else 0.0
+        per_label.append(
+            {
+                "label": label,
+                "frequency": count / total if total else 0.0,
+                "days": count,
+                "avg_duration_days": round(avg_dur, 2),
+                "occurrences": len(durations),
+            }
+        )
+
+    latest = history[-1]
+    current_label = latest["state_label"]
+    current_streak = runs[-1][1] if runs else 0
+
+    # Durata attesa del regime corrente dalla matrice di transizione.
+    expected_duration: float | None = None
+    if snapshot:
+        idx = latest["state_index"]
+        matrix = snapshot["matrix"]
+        if 0 <= idx < len(matrix):
+            p_ii = matrix[idx][idx]
+            if p_ii < 1.0:
+                expected_duration = round(1.0 / (1.0 - p_ii), 2)
+
+    return {
+        "asset": asset.id,
+        "as_of": latest["date"],
+        "current_regime": current_label,
+        "current_streak_days": current_streak,
+        "expected_duration_days": expected_duration,
+        "sample_days": total,
+        "regimes": per_label,
     }

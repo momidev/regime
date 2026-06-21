@@ -104,6 +104,49 @@ def test_alert_status(client):
     assert isinstance(body["regime_changed"], bool)
 
 
+def test_overview(client):
+    resp = client.get("/regime/overview")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 6
+    btc = next(a for a in body["assets"] if a["asset"] == TRAINED_ASSET)
+    assert btc["has_data"] is True
+    assert btc["state_label"]
+    assert 0.0 <= btc["top_probability"] <= 1.0
+    # Un asset non addestrato compare ma senza dati.
+    spy = next(a for a in body["assets"] if a["asset"] == UNTRAINED_ASSET)
+    assert spy["has_data"] is False
+    assert spy["state_label"] is None
+
+
+def test_prices(client):
+    resp = client.get(f"/prices/{TRAINED_ASSET}", params={"days": 90})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] > 0
+    point = body["prices"][0]
+    assert {"date", "close"} <= point.keys()
+    assert point["close"] > 0
+
+
+def test_stats(client):
+    resp = client.get(f"/regime/{TRAINED_ASSET}/stats")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["current_regime"]
+    assert body["current_streak_days"] >= 1
+    assert body["sample_days"] > 0
+    # Le frequenze sommano a ~1.
+    assert abs(sum(r["frequency"] for r in body["regimes"]) - 1.0) < 1e-6
+    # Durata attesa derivata dalla matrice di transizione.
+    assert body["expected_duration_days"] is None or body["expected_duration_days"] > 0
+
+
+def test_stats_untrained_asset_returns_409(client):
+    resp = client.get(f"/regime/{UNTRAINED_ASSET}/stats")
+    assert resp.status_code == 409
+
+
 def test_unknown_asset_returns_404(client):
     resp = client.get("/regime/NOT-AN-ASSET/current")
     assert resp.status_code == 404

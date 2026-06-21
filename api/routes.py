@@ -12,7 +12,10 @@ from api.schemas import (
     CurrentRegimeOut,
     HealthOut,
     HistoryOut,
+    OverviewOut,
+    PricesOut,
     RefreshOut,
+    StatsOut,
     TransitionMatrixOut,
 )
 from assets import list_assets
@@ -62,6 +65,12 @@ def get_assets() -> AssetListOut:
         for a in list_assets()
     ]
     return AssetListOut(count=len(assets), assets=assets)
+
+
+@router.get("/regime/overview", response_model=OverviewOut, tags=["regime"])
+def regime_overview() -> OverviewOut:
+    """Stato corrente sintetico di tutti gli asset in una sola risposta (per la home)."""
+    return OverviewOut(**service.get_overview())
 
 
 @router.get(
@@ -115,6 +124,27 @@ def regime_alert_status(asset: str) -> AlertStatusOut:
     """Indica se c'è stato un cambio di regime nelle ultime 24 ore."""
     try:
         return AlertStatusOut(**service.get_alert_status(asset))
+    except Exception as exc:  # noqa: BLE001
+        raise _handle_domain_errors(exc) from exc
+
+
+@router.get("/regime/{asset}/stats", response_model=StatsOut, tags=["regime"])
+def regime_stats(asset: str) -> StatsOut:
+    """Statistiche sui regimi: streak corrente, frequenze, durate, durata attesa."""
+    try:
+        return StatsOut(**service.get_stats(asset))
+    except Exception as exc:  # noqa: BLE001
+        raise _handle_domain_errors(exc) from exc
+
+
+@router.get("/prices/{asset}", response_model=PricesOut, tags=["prices"])
+def prices(
+    asset: str,
+    days: int = Query(90, ge=1, le=3650, description="Giorni di storico prezzi."),
+) -> PricesOut:
+    """Serie del prezzo di chiusura, allineata alla timeline dei regimi (overlay)."""
+    try:
+        return PricesOut(**service.get_prices(asset, days))
     except Exception as exc:  # noqa: BLE001
         raise _handle_domain_errors(exc) from exc
 

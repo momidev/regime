@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS regime_classifications (
     state_index   INTEGER     NOT NULL,
     state_label   TEXT        NOT NULL,
     probs         JSONB       NOT NULL,          -- {label: probabilità}
+    close         DOUBLE PRECISION,              -- prezzo di chiusura (per overlay prezzo+regimi)
     log_return    DOUBLE PRECISION,
     volatility    DOUBLE PRECISION,
     momentum      DOUBLE PRECISION,

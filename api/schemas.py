@@ -107,6 +107,72 @@ class RefreshOut(BaseModel):
     results: list[RefreshItem]
 
 
+class OverviewItem(BaseModel):
+    """Stato corrente sintetico di un asset (per la home)."""
+
+    asset: str
+    name: str
+    asset_class: str
+    has_data: bool
+    as_of: str | None = None
+    state_label: str | None = None
+    top_probability: float | None = Field(
+        None, description="Probabilità del regime più probabile."
+    )
+
+
+class OverviewOut(BaseModel):
+    """Snapshot di tutti gli asset in una sola risposta."""
+
+    count: int
+    assets: list[OverviewItem]
+
+
+class PricePoint(BaseModel):
+    """Prezzo di chiusura per una data."""
+
+    date: str
+    close: float
+
+
+class PricesOut(BaseModel):
+    """Serie storica del prezzo di chiusura, allineata ai regimi."""
+
+    asset: str
+    days: int
+    count: int
+    prices: list[PricePoint]
+
+
+class RegimeStat(BaseModel):
+    """Statistiche di un singolo regime sullo storico."""
+
+    label: str
+    frequency: float = Field(..., description="Quota di giorni in questo regime [0,1].")
+    days: int
+    avg_duration_days: float = Field(
+        ..., description="Durata media (giorni) dei periodi consecutivi nel regime."
+    )
+    occurrences: int = Field(..., description="Numero di periodi distinti nel regime.")
+
+
+class StatsOut(BaseModel):
+    """Statistiche descrittive sui regimi di un asset."""
+
+    asset: str
+    as_of: str
+    current_regime: str
+    current_streak_days: int = Field(
+        ..., description="Giorni consecutivi nel regime corrente."
+    )
+    expected_duration_days: float | None = Field(
+        None,
+        description="Durata attesa del regime corrente, da 1/(1-p_ii) della matrice.",
+    )
+    sample_days: int
+    regimes: list[RegimeStat]
+
+
 class HealthOut(BaseModel):
     """Risposta dell'healthcheck."""
 
